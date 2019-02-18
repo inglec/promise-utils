@@ -24,7 +24,19 @@ const partition = values => (
   )
 );
 
-const chain = promises => promises.reduce((acc, promise) => acc.then(promise), Promise.resolve());
+const chain = (promises) => {
+  const values = [];
+
+  return promises
+    .reduce((acc, promise) => (
+      acc.then((value) => {
+        values.push(value);
+
+        return promise(value);
+      })
+    ), Promise.resolve())
+    .then(() => values);
+};
 
 const wait = promises => (
   Promise
@@ -33,8 +45,8 @@ const wait = promises => (
 );
 
 module.exports = {
-  convertRejected,
   chain,
+  convertRejected,
   partition,
   wait,
 };

@@ -1,7 +1,7 @@
 const { isPromise } = require('./types');
 const {
-  convertRejected,
   chain,
+  convertRejected,
   partition,
   wait,
 } = require('./utils');

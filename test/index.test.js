@@ -7,25 +7,25 @@ const {
 describe('chain', () => {
   test('resolves array of resolving Promises', () => {
     const promises = [
-      () => Promise.resolve('resolved'),
-      value => Promise.resolve(value),
+      () => Promise.resolve(1),
+      value => Promise.resolve(value + 1),
     ];
 
     expect(chain(promises))
       .resolves
-      .toBe('resolved');
+      .toEqual(expect.arrayContaining(1, 2));
   });
 
   test('rejects array of Promises with rejecting Promise', () => {
     const promises = [
-      () => Promise.resolve(),
-      () => Promise.reject(Error('rejected')),
-      () => Promise.resolve(),
+      () => Promise.resolve(1),
+      () => Promise.reject(Error(2)),
+      () => Promise.resolve(3),
     ];
 
     expect(chain(promises))
       .rejects
-      .toThrow('rejected');
+      .toThrow(2);
   });
 });
 
@@ -61,16 +61,14 @@ describe('isPromise', () => {
 
 describe('wait', () => {
   test('returns object of resolved Promises', () => {
-    const resolved1 = 1;
-    const resolved2 = 2;
     const promises = [
-      Promise.resolve(resolved1),
-      Promise.resolve(resolved2),
+      Promise.resolve(1),
+      Promise.resolve(2),
     ];
 
     expect(wait(promises))
       .resolves
-      .toMatchObject({ resolved: [resolved1, resolved2] });
+      .toMatchObject({ resolved: [1, 2] });
   });
 
   test('returns object of rejected Promises', () => {
@@ -87,15 +85,14 @@ describe('wait', () => {
   });
 
   test('returns object of resolved and rejected Promises', () => {
-    const resolved = 1;
     const rejected = Error(2);
     const promises = [
-      Promise.resolve(resolved),
+      Promise.resolve(1),
       Promise.reject(rejected),
     ];
 
     expect(wait(promises))
       .resolves
-      .toMatchObject({ resolved: [resolved], rejected: [rejected] });
+      .toMatchObject({ resolved: [1], rejected: [rejected] });
   });
 });
