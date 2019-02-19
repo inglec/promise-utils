@@ -1,9 +1,7 @@
-const { isError } = require('./types');
+const { isError, toError } = require('./types');
 
 // Convert a rejected value into a resolved Error.
-const convertRejected = promise => (
-  promise.catch(error => (isError(error) ? error : Error(error)))
-);
+const catchError = promise => promise.catch(toError);
 
 // Split array of resolved values into object of resolved values and rejected Errors.
 const partition = values => (
@@ -24,29 +22,63 @@ const partition = values => (
   )
 );
 
-const chain = (promises) => {
+// Call Promise creators in order.
+const sequence = (
+  promises,
+  afterEach = (value, next) => next(value),
+  handleError = error => Promise.reject(error),
+) => (
+  promises.reduce((acc, next) => (
+    acc
+      .then(value => afterEach(value, next))
+      .catch(error => handleError(error, next))
+  ), Promise.resolve())
+);
+
+// Sequence Promise creators, but fail on rejection.
+const chain = (promises, returnAll = false) => {
+  if (!returnAll) {
+    return sequence(promises);
+  }
+
+  // Array of intermediate resolved values.
   const values = [];
 
-  return promises
-    .reduce((acc, promise) => (
-      acc.then((value) => {
-        values.push(value);
+  const last = sequence(promises, (value, next) => {
+    values.push(value);
+    return next(value);
+  });
 
-        return promise(value);
-      })
-    ), Promise.resolve())
-    .then(() => values);
+  return last.then(() => values);
+};
+
+// Sequence Promise creators, but handle rejections.
+const queue = (promises, passErrors = false) => {
+  const values = [];
+
+  const last = sequence(
+    promises,
+    (value, next) => {
+      values.push(value);
+      return next(value);
+    },
+    (error, next) => next(passErrors ? toError(error) : undefined),
+  );
+
+  return last.then(() => partition(values));
 };
 
 const wait = promises => (
   Promise
-    .all(promises.map(convertRejected))
+    .all(promises.map(catchError))
     .then(partition)
 );
 
 module.exports = {
+  catchError,
   chain,
-  convertRejected,
   partition,
+  queue,
+  sequence,
   wait,
 };

@@ -1,15 +1,19 @@
 const { isPromise } = require('./types');
 const {
+  catchError,
   chain,
-  convertRejected,
   partition,
+  queue,
+  sequence,
   wait,
 } = require('./utils');
 
 module.exports = {
+  catchError,
   chain,
-  convertRejected,
   isPromise,
   partition,
+  queue,
+  sequence,
   wait,
 };

@@ -1,26 +1,36 @@
 const {
+  // catchError,
   chain,
   isPromise,
+  // partition,
+  // queue,
+  // sequence,
   wait,
 } = require('../src/index.js');
 
 describe('chain', () => {
-  test('resolves array of resolving Promises', () => {
+  test('chains array of resolving Promise creators', () => {
     const promises = [
       () => Promise.resolve(1),
       value => Promise.resolve(value + 1),
     ];
 
+    // Return final resolved value.
     expect(chain(promises))
+      .resolves
+      .toBe(2);
+
+    // Return all resolved values.
+    expect(chain(promises, true))
       .resolves
       .toEqual(expect.arrayContaining(1, 2));
   });
 
-  test('rejects array of Promises with rejecting Promise', () => {
+  test('rejects with rejecting Promise', () => {
     const promises = [
       () => Promise.resolve(1),
-      () => Promise.reject(Error(2)),
-      () => Promise.resolve(3),
+      value => Promise.reject(Error(value + 1)),
+      value => Promise.resolve(value + 1),
     ];
 
     expect(chain(promises))
@@ -57,6 +67,23 @@ describe('isPromise', () => {
 
     expect(isPromise(object)).toBe(false);
   });
+});
+
+describe('queue', () => {
+  test('', () => {
+    test('returns object of resolved Promises', () => {
+      const promises = [
+        () => Promise.resolve(1),
+        value => Promise.resolve(value + 1),
+      ];
+
+      expect(wait(promises))
+        .resolves
+        .toMatchObject({ resolved: [1, 2] });
+    });
+  });
+
+  // TODO: Write more tests.
 });
 
 describe('wait', () => {
