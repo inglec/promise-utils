@@ -66,7 +66,10 @@ const queue = (promises, passErrors = false) => {
   const last = sequence(
     promises,
     (value, next) => {
-      values.push(value);
+      if (isError(value)) {
+        values.push(value);
+      }
+
       return next(value);
     },
     (error) => {
