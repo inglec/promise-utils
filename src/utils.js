@@ -69,7 +69,12 @@ const queue = (promises, passErrors = false) => {
       values.push(value);
       return next(value);
     },
-    error => (passErrors ? toError(error) : undefined),
+    (error) => {
+      const value = toError(error);
+      values.push(value);
+
+      return passErrors ? value : undefined;
+    },
   );
 
   return last.then(() => partition(values));
