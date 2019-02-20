@@ -27,13 +27,20 @@ const sequence = (
   promises,
   afterEach = (value, next) => next(value),
   handleError = error => Promise.reject(error),
-) => (
-  promises.reduce((acc, next) => (
-    acc
-      .then(value => afterEach(value, next))
-      .catch(error => handleError(error, next))
-  ), Promise.resolve())
-);
+) => {
+  const afterAll = value => Promise.resolve(value);
+
+  return promises
+    .reduce((acc, next, i) => (
+      acc
+        .then(value => (
+          // Don't apply afterEach on first iteration to skip the initial value.
+          i > 0 ? afterEach(value, next) : next(value)
+        ))
+        .catch(error => handleError(error, next))
+    ), Promise.resolve())
+    .then(value => afterEach(value, afterAll));
+};
 
 // Sequence Promise creators, but fail on rejection.
 const chain = (promises, returnAll = false) => {
