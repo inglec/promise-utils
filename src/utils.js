@@ -37,7 +37,7 @@ const sequence = (
           // Don't apply afterEach on first iteration to skip the initial value.
           i > 0 ? afterEach(value, next) : next(value)
         ))
-        .catch(error => handleError(error, next))
+        .catch(error => handleError(error))
     ), Promise.resolve())
     .then(value => afterEach(value, afterAll));
 };
@@ -69,7 +69,7 @@ const queue = (promises, passErrors = false) => {
       values.push(value);
       return next(value);
     },
-    (error, next) => next(passErrors ? toError(error) : undefined),
+    error => (passErrors ? toError(error) : undefined),
   );
 
   return last.then(() => partition(values));
