@@ -8,7 +8,7 @@ const partition = values => (
   values.reduce(
     (acc, value) => {
       if (isError(value)) {
-        acc.rejected.push(value);
+        acc.rejected.push(value.toString());
       } else {
         acc.resolved.push(value);
       }
