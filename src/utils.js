@@ -66,18 +66,13 @@ const queue = (promises, passErrors = false) => {
   const last = sequence(
     promises,
     (value, next) => {
-      if (!isError(value)) {
-        values.push(value);
-      }
-
-      return next(value);
-    },
-    (error) => {
-      const value = toError(error);
       values.push(value);
 
-      return passErrors ? value : undefined;
+      return passErrors || !isError(value)
+        ? next(value)
+        : next();
     },
+    error => toError(error),
   );
 
   return last.then(() => partition(values));
