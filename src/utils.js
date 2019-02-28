@@ -1,40 +1,30 @@
-const { isError, toError } = require('./types');
+const { isError, reduce } = require('lodash');
+
+const { toError } = require('./types');
 
 // Convert a rejected value into a resolved Error
 const catchError = promise => promise.catch(toError);
 
 // Split array of resolved values into object of resolved values and rejected Errors
-const partition = (values, keys) => {
-  // Return object
-  if (keys) {
-    return values.reduce(
-      (acc, value, i) => {
-        const key = keys[i];
+const partition = (object, labels) => {
+  const isArray = Array.isArray(object);
+  const keys = !isArray && !labels ? Object.keys(object) : labels;
 
-        if (isError(value)) {
-          acc.rejected[key] = value;
-        } else {
-          acc.resolved[key] = value;
-        }
-
-        return acc;
-      },
-      { rejected: {}, resolved: {} },
-    );
-  }
-
-  // Return arrays
-  return values.reduce(
-    (acc, value) => {
+  return reduce(
+    object,
+    (acc, value, key) => {
       if (isError(value)) {
-        acc.rejected.push(value);
+        acc.rejected[key] = value;
       } else {
-        acc.resolved.push(value);
+        acc.resolved[key] = value;
       }
 
       return acc;
     },
-    { rejected: [], resolved: [] },
+    {
+      rejected: keys ? {} : [],
+      resolved: keys ? {} : [],
+    },
   );
 };
 
@@ -42,18 +32,17 @@ const partition = (values, keys) => {
 const sequence = (
   promises,
   afterEach = (value, next) => next(value),
-  handleError = error => Promise.reject(error),
+  handleReject = error => Promise.reject(error),
 ) => {
+  // Skip the applying `afterEach` to initial value
+  const handleResolve = (value, next, i) => (i === 0 ? next(value) : afterEach(value, next));
   const afterAll = value => Promise.resolve(value);
 
   return promises
     .reduce((acc, next, i) => (
       acc
-        .then(value => (
-          // Don't apply afterEach on first iteration to skip the initial value
-          i > 0 ? afterEach(value, next) : next(value)
-        ))
-        .catch(error => handleError(error))
+        .then(value => handleResolve(value, next, i))
+        .catch(error => handleReject(error))
     ), Promise.resolve())
     .then(value => afterEach(value, afterAll));
 };
@@ -64,22 +53,19 @@ const chain = (promises, returnAll = false) => {
     return sequence(promises);
   }
 
-  // Array of intermediate resolved values
   const values = [];
-
-  const last = sequence(promises, (value, next) => {
+  const seq = sequence(promises, (value, next) => {
     values.push(value);
     return next(value);
   });
 
-  return last.then(() => values);
+  return seq.then(() => values);
 };
 
 // Sequence Promise creators, but handle rejections
 const queue = (promises, passErrors = false) => {
   const values = [];
-
-  const last = sequence(
+  const seq = sequence(
     promises,
     (value, next) => {
       values.push(value);
@@ -92,7 +78,7 @@ const queue = (promises, passErrors = false) => {
   // Pass array of keys if promise creators is an object.
   const keys = Array.isArray(promises) ? undefined : Object.keys(promises);
 
-  return last.then(() => partition(values, keys));
+  return seq.then(() => partition(values, keys));
 };
 
 const wait = promises => (

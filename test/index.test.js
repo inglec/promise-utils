@@ -3,7 +3,7 @@ const {
   chain,
   isPromise,
   // partition,
-  // queue,
+  queue,
   // sequence,
   wait,
 } = require('../src/index.js');
@@ -14,6 +14,8 @@ describe('chain', () => {
       () => Promise.resolve(1),
       value => Promise.resolve(value + 1),
     ];
+
+    // TODO: Split into 2 tests which return the expect.
 
     // Return final resolved value.
     expect(chain(promises))
@@ -29,13 +31,13 @@ describe('chain', () => {
   test('rejects with rejecting Promise', () => {
     const promises = [
       () => Promise.resolve(1),
-      value => Promise.reject(Error(value + 1)),
+      value => Promise.reject(Error((value + 1).toString())),
       value => Promise.resolve(value + 1),
     ];
 
-    expect(chain(promises))
+    return expect(chain(promises))
       .rejects
-      .toThrow(2);
+      .toThrow('2');
   });
 });
 
@@ -70,17 +72,15 @@ describe('isPromise', () => {
 });
 
 describe('queue', () => {
-  test('', () => {
-    test('returns object of resolved Promises', () => {
-      const promises = [
-        () => Promise.resolve(1),
-        value => Promise.resolve(value + 1),
-      ];
+  test('returns object of resolved Promises', () => {
+    const promises = [
+      () => Promise.resolve(1),
+      value => Promise.resolve(value + 1),
+    ];
 
-      expect(wait(promises))
-        .resolves
-        .toMatchObject({ resolved: [1, 2] });
-    });
+    return expect(queue(promises))
+      .resolves
+      .toMatchObject({ resolved: [1, 2] });
   });
 
   // TODO: Write more tests.
@@ -93,32 +93,32 @@ describe('wait', () => {
       Promise.resolve(2),
     ];
 
-    expect(wait(promises))
+    return expect(wait(promises))
       .resolves
       .toMatchObject({ resolved: [1, 2] });
   });
 
   test('returns object of rejected Promises', () => {
-    const rejected1 = Error(1);
-    const rejected2 = Error(2);
+    const rejected1 = Error('1');
+    const rejected2 = Error('2');
     const promises = [
       Promise.reject(rejected1),
       Promise.reject(rejected2),
     ];
 
-    expect(wait(promises))
+    return expect(wait(promises))
       .resolves
       .toMatchObject({ rejected: [rejected1, rejected2] });
   });
 
   test('returns object of resolved and rejected Promises', () => {
-    const rejected = Error(2);
+    const rejected = Error('2');
     const promises = [
       Promise.resolve(1),
       Promise.reject(rejected),
     ];
 
-    expect(wait(promises))
+    return expect(wait(promises))
       .resolves
       .toMatchObject({ resolved: [1], rejected: [rejected] });
   });
