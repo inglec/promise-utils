@@ -7,8 +7,7 @@ const catchError = promise => promise.catch(toError);
 
 // Split array of resolved values into object of resolved values and rejected Errors
 const partition = (object, labels) => {
-  const isArray = Array.isArray(object);
-  const keys = !isArray && !labels ? Object.keys(object) : labels;
+  const keys = !Array.isArray(object) && !labels ? Object.keys(object) : labels;
 
   return reduce(
     object,
