@@ -62,7 +62,11 @@ const chain = (promises, returnAll = false) => {
 };
 
 // Sequence Promise creators, but handle rejections
-const queue = (promises, passErrors = false) => {
+const queue = (object, passErrors = false) => {
+  const isArray = Array.isArray(object);
+  const keys = isArray ? undefined : Object.keys(object);
+  const promises = isArray ? object : Object.values(object);
+
   const values = [];
   const seq = sequence(
     promises,
@@ -73,9 +77,6 @@ const queue = (promises, passErrors = false) => {
     },
     error => toError(error),
   );
-
-  // Pass array of keys if promise creators is an object.
-  const keys = Array.isArray(promises) ? undefined : Object.keys(promises);
 
   return seq.then(() => partition(values, keys));
 };
