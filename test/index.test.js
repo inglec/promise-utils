@@ -71,7 +71,7 @@ describe('isPromise', () => {
   });
 });
 
-describe('queue', () => {
+describe('queue array', () => {
   test('returns object of resolved Promises', () => {
     const promises = [
       () => Promise.resolve(1),
@@ -81,6 +81,21 @@ describe('queue', () => {
     return expect(queue(promises))
       .resolves
       .toMatchObject({ resolved: [1, 2] });
+  });
+
+  // TODO: Write more tests.
+});
+
+describe('queue object', () => {
+  test('returns object of resolved Promises', () => {
+    const promises = {
+      one: () => Promise.resolve(1),
+      two: value => Promise.resolve(value + 1),
+    };
+
+    return expect(queue(promises))
+      .resolves
+      .toMatchObject({ resolved: { one: 1, two: 2 } });
   });
 
   // TODO: Write more tests.

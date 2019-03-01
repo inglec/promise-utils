@@ -1,29 +1,32 @@
-const { isError, reduce } = require('lodash');
-
-const { toError } = require('./types');
+const { isError, toError } = require('./types');
 
 // Convert a rejected value into a resolved Error
 const catchError = promise => promise.catch(toError);
 
 // Split array of resolved values into object of resolved values and rejected Errors
-const partition = (object, labels) => {
-  const keys = !Array.isArray(object) && !labels ? Object.keys(object) : labels;
+const partition = (object) => {
+  if (Array.isArray(object)) {
+    return object.reduce(
+      (acc, value) => {
+        acc[isError(value) ? 'rejected' : 'resolved'].push(value);
 
-  return reduce(
-    object,
-    (acc, value, key) => {
-      if (isError(value)) {
-        acc.rejected[key] = value;
-      } else {
-        acc.resolved[key] = value;
-      }
+        return acc;
+      },
+      { rejected: [], resolved: [] },
+    );
+  }
+
+  const keys = Object.keys(object);
+  const values = Object.values(object);
+
+  return values.reduce(
+    (acc, value, i) => {
+      const key = keys[i];
+      acc[isError(value) ? 'rejected' : 'resolved'][key] = value;
 
       return acc;
     },
-    {
-      rejected: keys ? {} : [],
-      resolved: keys ? {} : [],
-    },
+    { rejected: {}, resolved: {} },
   );
 };
 
@@ -33,8 +36,12 @@ const sequence = (
   afterEach = (value, next) => next(value),
   handleReject = error => Promise.reject(error),
 ) => {
-  // Skip the applying `afterEach` to initial value
-  const handleResolve = (value, next, i) => (i === 0 ? next(value) : afterEach(value, next));
+  const handleResolve = (value, next, i) => (
+    // Skip the applying `afterEach` to initial value
+    i === 0
+      ? next(value)
+      : afterEach(value, next, i - 1)
+  );
   const afterAll = value => Promise.resolve(value);
 
   return promises
@@ -43,7 +50,7 @@ const sequence = (
         .then(value => handleResolve(value, next, i))
         .catch(error => handleReject(error))
     ), Promise.resolve())
-    .then(value => afterEach(value, afterAll));
+    .then(value => afterEach(value, afterAll, promises.length - 1));
 };
 
 // Sequence Promise creators, but fail on rejection
@@ -67,18 +74,19 @@ const queue = (object, passErrors = false) => {
   const keys = isArray ? undefined : Object.keys(object);
   const promises = isArray ? object : Object.values(object);
 
-  const values = [];
+  const values = isArray ? [] : {};
   const seq = sequence(
     promises,
-    (value, next) => {
-      values.push(value);
+    (value, next, i) => {
+      const key = isArray ? i : keys[i];
+      values[key] = value;
 
       return passErrors || !isError(value) ? next(value) : next();
     },
     error => toError(error),
   );
 
-  return seq.then(() => partition(values, keys));
+  return seq.then(() => partition(values));
 };
 
 const wait = promises => (
