@@ -1,4 +1,4 @@
-const { isError, toError } = require('./types');
+const { toError } = require('./types');
 
 // Convert a rejected value into a resolved Error
 const catchError = promise => promise.catch(toError);
@@ -8,7 +8,7 @@ const partition = (object) => {
   if (Array.isArray(object)) {
     return object.reduce(
       (acc, value) => {
-        acc[isError(value) ? 'rejected' : 'resolved'].push(value);
+        acc[value instanceof Error ? 'rejected' : 'resolved'].push(value);
 
         return acc;
       },
@@ -22,7 +22,7 @@ const partition = (object) => {
   return values.reduce(
     (acc, value, i) => {
       const key = keys[i];
-      acc[isError(value) ? 'rejected' : 'resolved'][key] = value;
+      acc[value instanceof Error ? 'rejected' : 'resolved'][key] = value;
 
       return acc;
     },
@@ -32,35 +32,35 @@ const partition = (object) => {
 
 // Call Promise creators in order
 const sequence = (
-  promises,
+  promiseCreators,
   afterEach = (value, next) => next(value),
   handleReject = error => Promise.reject(error),
 ) => {
   const handleResolve = (value, next, i) => (
-    // Skip the applying `afterEach` to initial value
+    // Skip applying `afterEach` to initial value
     i === 0
       ? next(value)
       : afterEach(value, next, i - 1)
   );
   const afterAll = value => Promise.resolve(value);
 
-  return promises
+  return promiseCreators
     .reduce((acc, next, i) => (
       acc
         .then(value => handleResolve(value, next, i))
         .catch(error => handleReject(error))
     ), Promise.resolve())
-    .then(value => afterEach(value, afterAll, promises.length - 1));
+    .then(value => afterEach(value, afterAll, promiseCreators.length - 1));
 };
 
 // Sequence Promise creators, but fail on rejection
-const chain = (promises, returnAll = false) => {
+const chain = (promiseCreators, returnAll = false) => {
   if (!returnAll) {
-    return sequence(promises);
+    return sequence(promiseCreators);
   }
 
   const values = [];
-  const seq = sequence(promises, (value, next) => {
+  const seq = sequence(promiseCreators, (value, next) => {
     values.push(value);
     return next(value);
   });
@@ -72,16 +72,16 @@ const chain = (promises, returnAll = false) => {
 const queue = (object, passErrors = false) => {
   const isArray = Array.isArray(object);
   const keys = isArray ? undefined : Object.keys(object);
-  const promises = isArray ? object : Object.values(object);
+  const promiseCreators = isArray ? object : Object.values(object);
 
   const values = isArray ? [] : {};
   const seq = sequence(
-    promises,
+    promiseCreators,
     (value, next, i) => {
       const key = isArray ? i : keys[i];
       values[key] = value;
 
-      return passErrors || !isError(value) ? next(value) : next();
+      return (passErrors || !(value instanceof Error)) ? next(value) : next();
     },
     error => toError(error),
   );
@@ -89,17 +89,34 @@ const queue = (object, passErrors = false) => {
   return seq.then(() => partition(values));
 };
 
-const wait = promises => (
+const wait = promiseCreators => (
   Promise
-    .all(promises.map(catchError))
+    .all(promiseCreators.map(catchError))
     .then(partition)
 );
+
+// Call a promise creator any number of times in a row
+const repeat = async (promiseCreator, iterations = 1) => {
+  const values = [];
+
+  let previous;
+  for (let i = 0; i < iterations; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const value = await promiseCreator(previous);
+
+    previous = value;
+    values.push(value);
+  }
+
+  return values;
+};
 
 module.exports = {
   catchError,
   chain,
   partition,
   queue,
+  repeat,
   sequence,
   wait,
 };

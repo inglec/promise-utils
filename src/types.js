@@ -1,11 +1,3 @@
-const isError = error => error instanceof Error;
+const toError = error => (error instanceof Error ? error : Error(error));
 
-const isPromise = promise => Promise.resolve(promise) === promise;
-
-const toError = error => (isError(error) ? error : Error(error));
-
-module.exports = {
-  isError,
-  isPromise,
-  toError,
-};
+module.exports = { toError };
