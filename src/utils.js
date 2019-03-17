@@ -1,122 +1,95 @@
-const { toError } = require('./types');
+const Results = require('./Results');
 
-// Convert a rejected value into a resolved Error
-const catchError = promise => promise.catch(toError);
-
-// Split array of resolved values into object of resolved values and rejected Errors
-const partition = (object) => {
-  if (Array.isArray(object)) {
-    return object.reduce(
-      (acc, value) => {
-        acc[value instanceof Error ? 'rejected' : 'resolved'].push(value);
-
-        return acc;
-      },
-      { rejected: [], resolved: [] },
-    );
+const sequence = async (promiseCreators, afterEach, handleError) => {
+  let value;
+  for (let i = 0; i < promiseCreators.length; i += 1) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      value = await promiseCreators[i](value);
+      if (afterEach) {
+        afterEach(value, i);
+      }
+    } catch (error) {
+      if (handleError) {
+        value = handleError(error);
+      } else {
+        throw error;
+      }
+    }
   }
 
-  const keys = Object.keys(object);
-  const values = Object.values(object);
-
-  return values.reduce(
-    (acc, value, i) => {
-      const key = keys[i];
-      acc[value instanceof Error ? 'rejected' : 'resolved'][key] = value;
-
-      return acc;
-    },
-    { rejected: {}, resolved: {} },
-  );
+  return value;
 };
 
-// Call Promise creators in order
-const sequence = (
-  promiseCreators,
-  afterEach = (value, next) => next(value),
-  handleReject = error => Promise.reject(error),
-) => {
-  const handleResolve = (value, next, i) => (
-    // Skip applying `afterEach` to initial value
-    i === 0
-      ? next(value)
-      : afterEach(value, next, i - 1)
-  );
-  const afterAll = value => Promise.resolve(value);
-
-  return promiseCreators
-    .reduce((acc, next, i) => (
-      acc
-        .then(value => handleResolve(value, next, i))
-        .catch(error => handleReject(error))
-    ), Promise.resolve())
-    .then(value => afterEach(value, afterAll, promiseCreators.length - 1));
-};
-
-// Sequence Promise creators, but fail on rejection
-const chain = (promiseCreators, returnAll = false) => {
-  if (!returnAll) {
-    return sequence(promiseCreators);
-  }
-
+// Sequence Promise creators
+const chain = async (promiseCreators) => {
   const values = [];
-  const seq = sequence(promiseCreators, (value, next) => {
-    values.push(value);
-    return next(value);
-  });
-
-  return seq.then(() => values);
-};
-
-// Sequence Promise creators, but handle rejections
-const queue = (object, passErrors = false) => {
-  const isArray = Array.isArray(object);
-  const keys = isArray ? undefined : Object.keys(object);
-  const promiseCreators = isArray ? object : Object.values(object);
-
-  const values = isArray ? [] : {};
-  const seq = sequence(
-    promiseCreators,
-    (value, next, i) => {
-      const key = isArray ? i : keys[i];
-      values[key] = value;
-
-      return (passErrors || !(value instanceof Error)) ? next(value) : next();
-    },
-    error => toError(error),
-  );
-
-  return seq.then(() => partition(values));
-};
-
-const wait = promiseCreators => (
-  Promise
-    .all(promiseCreators.map(catchError))
-    .then(partition)
-);
-
-// Call a promise creator any number of times in a row
-const repeat = async (promiseCreator, iterations = 1) => {
-  const values = [];
-
-  let previous;
-  for (let i = 0; i < iterations; i += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    const value = await promiseCreator(previous);
-
-    previous = value;
-    values.push(value);
-  }
-
+  await sequence(promiseCreators, value => values.push(value));
   return values;
 };
 
+// Sequence Promise creators, but handle rejections
+const queue = async (object) => {
+  const isArray = Array.isArray(object);
+  const keys = isArray ? null : Object.keys(object);
+  const promiseCreators = isArray ? object : Object.values(object);
+
+  const results = new Results();
+  const afterEach = (value, i) => results.addResolved(value, isArray ? null : keys[i]);
+  const handleError = (error) => {
+    results.addRejected(error);
+    return error;
+  };
+
+  await sequence(promiseCreators, afterEach, handleError);
+  return results;
+};
+
+// Promise.all but handle rejections
+const wait = async (promises) => {
+  const results = new Results();
+  const wrapped = promises.map(promise => (
+    promise
+      .then(value => results.addResolved(value))
+      .catch(error => results.addRejected(error))
+  ));
+  await Promise.all(wrapped);
+  return results;
+};
+
+const repeatWhile = async (promiseCreator, predicate, handleErrors = false) => {
+  const results = new Results();
+
+  let previous;
+  for (let i = 0; predicate(previous, i); i += 1) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const value = await promiseCreator(previous);
+      results.addResolved(value);
+      previous = value;
+    } catch (error) {
+      if (handleErrors) {
+        results.addRejected(error);
+        previous = error;
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  return results;
+};
+
+// Call a promise creator any number of times in a row
+const repeat = (promiseCreator, iterations = 1) => (
+  repeatWhile(promiseCreator, (value, i) => i < iterations)
+);
+
 module.exports = {
-  catchError,
   chain,
-  partition,
   queue,
   repeat,
+  repeatWhile,
   sequence,
   wait,
 };
